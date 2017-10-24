@@ -1,7 +1,7 @@
 'use strict';
 var mysql = require('promise-mysql');
 
-var connection, tinpon, productVariations, tinponId;
+var connection, tinpon, tinponBasics, tinponVariations, tinponId;
 let host = "wegoloco-cluster.cluster-cb5jwvcwolur.eu-west-1.rds.amazonaws.com";
 let user = "admin";
 let password = "1269Y5$ST50j";
@@ -113,101 +113,80 @@ exports.handler = (event, context, callback) =>  {
         break;
         case "POST":
           console.log("POST case");
-          console.log("Body is:");
 
-          console.log(requestBody);
-          // tinpon = JSON.parse(requestBody);
-          // productVariations = tinpon.productVariations;
-          // delete tinpon.productVariations;
-          //
-          //
-          //
-          // mysql.createConnection({
-          //     host: host,
-          //     user: user,
-          //     password: password,
-          //     database: database,
-          //     charset: charset
-          // }).then(function(conn){
-          //     // insert Tinpon
-          //     connection = conn;
-          //
-          //     var query = connection.query("INSERT INTO tinpon SET ?", tinpon);
-          //     console.log("SQL QUERY : ", query.sql);
-          //     return query;
-          // }).then( function(result) {
-          //   // insert product Variations
-          //   tinponId = result.insertId;
-          //
-          //   var values = "";
-          //   for (var color in productVariations) {
-          //     for (var sizeVariation of productVariations[color].sizeVariation) {
-          //       let size = sizeVariation.size
-          //       let quantity = sizeVariation.quantity
-          //
-          //       values = values.concat("('"+tinponId+"', '"+color+"', '"+size+"', '"+quantity+"'),");
-          //     }
-          //   }
-          //
-          //   if (values != "") {
-          //     values = values.slice(0, -1);
-          //
-          //     var query = connection.query("INSERT INTO tinpon_variation(tinpon_id, color, size, quantity)"
-          //                 +"VALUES "+values+";");
-          //     return query;
-          //   } else {
-          //       connection.end();
-          //       respond(context, 200, 'Success: Created Tinpon WITHOUT variations?.');
-          //   }
-          //
-          //
-          //
-          // }).then(function(result) {
-          //
-          //   var jsonResponse = {}
-          //   jsonResponse.tinponId = tinponId;
-          //
-          //   connection.end();
-          //   respond(context, 200, JSON.stringify(jsonResponse));
-          // });
+          tinpon  = JSON.parse(requestBody);
+          tinponVariations = tinpon.variations;
+          tinponBasics = tinpon;
+          delete tinponBasics.variations;
+          // console.log("tinponVariations:", tinponVariations);
 
+          mysql.createConnection({
+              host: host,
+              user: user,
+              password: password,
+              database: database,
+              charset: charset
+          }).then(function(conn){
+              // insert TinponBaiscs
+              connection = conn;
 
-          // OLD
-          // .then(function(rows) {
-          //   if (rows.length > 0) {
-          //     // User exists
-          //     connection.end();
-          //     respond(context, 405, "Error: User already exists");
-          //   } else {
-          //     var result = connection.query("INSERT INTO person SET ?", person);
-          //     return result;
-          //   }
-          // }).then(function(result) {
-          //   // insert categories
-          //
-          //   var values = "";
-          //   for (var category of categories) {
-          //     values = values.concat("('"+category+"', '"+cognitoIdentityId+"'),");
-          //   }
-          //   if (values != "") {
-          //     values = values.slice(0, -1);
-          //
-          //     var query = connection.query("INSERT INTO person_category(category_id, person_id)"
-          //                 +"VALUES "+values+";");
-          //     return query;
-          //   } else {
-          //       connection.end();
-          //       respond(context, 200, 'Success: Created User.');
-          //   }
-          // }).then(function(result) {
-          //   connection.end();
-          //   respond(context, 200, 'Success: Created User.');
-          // }).catch(function(error) {
-          //   console.log("ERROR : ", error);
-          // });
+              var query = connection.query("INSERT INTO tinpon SET ?", tinponBasics);
+              console.log("SQL QUERY : ", query.sql);
+              return query;
+          }).then( function(result) {
+            // Insert variations
+            tinponId = result.insertId;
+
+            var values = "";
+            tinponVariations.forEach( function(variation) {
+              // console.log("variation", variation);
+              let color = variation.color;
+              let sizeType = Object.keys(variation.size)[0];
+              let size = variation.size[sizeType];
+              console.log("sizeType and size", sizeType, size);
+              let quantity = variation.quantity;
+
+              values = values.concat("('"+tinponId+"', '"+color+"', '"+size+"', '"+sizeType+"', '"+quantity+"'),");
+            });
+
+            if (values != "") {
+              values = values.slice(0, -1);
+
+              var query = connection.query("INSERT INTO tinpon_variation(tinpon_id, color, size, size_type, quantity)"+
+                          "VALUES "+values+";");
+              return query;
+            } else {
+                connection.end();
+                respond(context, 200, tinponId);
+            }
+          }).then( function(result) {
+            connection.end();
+            // on success return TINPON ID
+            respond(context, 200, tinponId);
+          });
           break;
         }
         break;
+    case "/tinpons/not-swiped" :
+      console.log("Not Swiped Tinpons");
+      mysql.createConnection({
+          host: host,
+          user: user,
+          password: password,
+          database: database,
+          charset: charset
+      }).then(function(conn){
+          // insert TinponBaiscs
+          connection = conn;
+
+          var query = connection.query("SELECT * FROM tinpon LIMIT 10;");
+          return query;
+      }).then(function(result){
+        connection.end();
+        // on success return TINPON ID
+        respond(context, 200, JSON.stringify(result));
+      });
+      break;
     default :
       respond(context, 500, "Not a valid resoucrce called");
   }
